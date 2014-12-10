@@ -1,4 +1,11 @@
 require 'twitter_ebooks'
+require_relative 'boodoo'
+require 'dotenv'
+
+include Ebooks::Boodoo
+
+# Read .env file and set values:
+SETTINGS = Dotenv.load
 
 # Information about a particular Twitter user we know
 class UserInfo
@@ -10,42 +17,87 @@ class UserInfo
   # @param username [String]
   def initialize(username)
     @username = username
-    @pesters_left = 1
+    @pesters_left = parse_num(SETTINGS['PESTER_COUNT']) || 1
   end
 end
 
-class CloneBot < Ebooks::Bot
-  attr_accessor :original, :model, :model_path
-
+class CloneBot < BoodooBot
+  attr_accessor :original, :model, :model_path, :auth_name
+  # alias_method :oauth_token, :access_token
+  # alias_method :oauth_token_secret, :access_token_secret
   def configure
-    # Configuration for all CloneBots
-    self.consumer_key = ""
-    self.consumer_secret = ""
-    self.blacklist = ['kylelehk', 'friedrichsays', 'Sudieofna', 'tnietzschequote', 'NerdsOnPeriod', 'FSR', 'BafflingQuotes', 'Obey_Nxme']
+    # create attr_accessors for all SETTINGS fields
+    SETTINGS.keys.map(&:to_s).map(&:downcase).each(&Ebooks::Bot.method(:attr_accessor))
 
+    # String fields taken as-is:
+    @consumer_key =       SETTINGS['CONSUMER_KEY']
+    @consumer_secret =    SETTINGS['CONSUMER_SECRET']
+    @access_token =       SETTINGS['ACCESS_TOKEN']
+    @access_token_secret =SETTINGS['ACCESS_TOKEN_SECRET']
+    @tweet_interval =     SETTINGS['TWEET_INTERVAL']
+    # @pester_period =      SETTINGS['PESTER_PERIOD']
+
+    # String fields forced to downcase:
+    @bot_name =           SETTINGS['BOT_NAME'].downcase
+    @original =           SETTINGS['SOURCE_USERNAME'].downcase
+
+    # Array fields are CSV or SSV
+    @blacklist =        parse_array(SETTINGS['BLACKLIST'])
+    @banned_terms =     parse_array(SETTINGS['BANNED_TERMS'])
+    @special_terms  =   parse_array(SETTINGS['SPECIAL_TERMS'])
+
+    # Fields parsed as Fixnum, Float, or Range:
+    @default_delay =    parse_range(SETTINGS['DEFAULT_DELAY'])
+    @dm_delay =         parse_range(SETTINGS['DM_DELAY']) || parse_range(SETTINGS['DEFAULT_DELAY'])
+    @mention_delay =    parse_range(SETTINGS['MENTION_DELAY']) || parse_range(SETTINGS['DEFAULT_DELAY'])
+    @timeline_delay =   parse_range(SETTINGS['TIMELINE_DELAY']) || parse_range(SETTINGS['DEFAULT_DELAY'])
+    @tweet_chance =     parse_num(SETTINGS['TWEET_CHANCE'])
+    # @pester_count  =    parse_num(SETTINGS['PESTER_COUNT'])
+    @timeout_sleep =    parse_num(SETTINGS['TIMEOUT_SLEEP'])
+
+    # from example
     @userinfo = {}
-    
+
+    # added for BooDoo variant
+    @attempts = 0
+    @followers = []
+    @following = []
+    # @have_talked = {}
+
+    # load model file
     load_model!
   end
-
 
   def top100; @top100 ||= model.keywords.take(100); end
   def top20;  @top20  ||= model.keywords.take(20); end
 
-  def delay(&b)
-    sleep (1..4).to_a.sample
+  def delay(d, &b)
+    d ||= default_delay
+    sleep (d || [0]).to_a.sample
     b.call
   end
 
   def on_startup
-    scheduler.cron '0 0 * * *' do
-      # Each day at midnight, post a single tweet
-      tweet(model.make_statement)
+    log "I started up!"
+    scheduler.interval @tweet_interval do
+      if rand < @tweet_chance
+        tweet(model.make_statement)
+      end
     end
+
+    scheduler.interval @update_follows_interval do
+      follow_parity
+    end
+
+    # TODO: This throws a weird error.
+    #       Probably don't need it anyway?
+    # @auth_name ||= twitter.user.screen_name
+    # log "Logged in as #{auth_name}"
   end
 
   def on_direct_message(dm)
-    delay do
+    # TODO: Add controls here! Especially "tweet"
+    delay(dm_delay) do
       reply(dm, model.make_response(dm.text))
     end
   end
@@ -54,7 +106,7 @@ class CloneBot < Ebooks::Bot
     # Become more inclined to pester a user when they talk to us
     userinfo(tweet.user.screen_name).pesters_left += 1
 
-    delay do
+    delay(mention_delay) do
       reply(tweet, model.make_response(meta(tweet).mentionless, meta(tweet).limit))
     end
   end
@@ -62,13 +114,13 @@ class CloneBot < Ebooks::Bot
   def on_timeline(tweet)
     return if tweet.retweeted_status?
     return unless can_pester?(tweet.user.screen_name)
-    
+
     tokens = Ebooks::NLP.tokenize(tweet.text)
 
     interesting = tokens.find { |t| top100.include?(t.downcase) }
     very_interesting = tokens.find_all { |t| top20.include?(t.downcase) }.length > 2
 
-    delay do
+    delay(timeline_delay) do
       if very_interesting
         favorite(tweet) if rand < 0.5
         retweet(tweet) if rand < 0.1
@@ -97,7 +149,7 @@ class CloneBot < Ebooks::Bot
   # Only follow our original user or people who are following our original user
   # @param user [Twitter::User]
   def can_follow?(username)
-    @original.nil? || username == @original || twitter.friendship?(username, @original)
+    @original.nil? || username == @original || twitter.friendship?(username, @original) || twitter.friendship?(username, @original) || twitter.friendship?(username, auth_name)
   end
 
   def favorite(tweet)
@@ -116,7 +168,7 @@ class CloneBot < Ebooks::Bot
       log "Not following @#{user.screen_name}"
     end
   end
-  
+
   private
   def load_model!
     return if @model
@@ -128,9 +180,9 @@ class CloneBot < Ebooks::Bot
   end
 end
 
-CloneBot.new("abby_ebooks") do |bot|
-  bot.access_token = ""
-  bot.access_token_secret = ""
 
-  bot.original = "0xabad1dea"
+
+CloneBot.new(SETTINGS['BOT_NAME']) do |bot|
+  # CloneBot#configure does everything!
+  bot
 end
