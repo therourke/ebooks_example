@@ -4,8 +4,9 @@ require 'dotenv'
 
 include Ebooks::Boodoo
 
-# Read .env file and set values:
-SETTINGS = Dotenv.load
+# Read defaults and lay env vars on top:
+SETTINGS = Dotenv.load('defaults.env').merge(ENV)
+
 
 # Information about a particular Twitter user we know
 class UserInfo
@@ -55,7 +56,7 @@ class CloneBot < BoodooBot
     # @pester_count  =    parse_num(SETTINGS['PESTER_COUNT'])
     @timeout_sleep =    parse_num(SETTINGS['TIMEOUT_SLEEP'])
 
-    # from example
+    # from upstream example
     @userinfo = {}
 
     # added for BooDoo variant
@@ -96,9 +97,38 @@ class CloneBot < BoodooBot
   end
 
   def on_direct_message(dm)
-    # TODO: Add controls here! Especially "tweet"
-    delay(dm_delay) do
-      reply(dm, model.make_response(dm.text))
+    from_owner = dm.user.screen_name.downcase == @original
+    if from_owner
+      action = dm.text.split.first.downcase
+      strip_re = Regexp.new("^#{command}\s*", "i")
+      payload = dm.text.sub(strip_re, "")
+      #TODO: Add blacklist/whitelist/reject(banned phrase)
+      #TODO? Move this into a DMController class or equivalent?
+      case action
+      when "tweet"
+        tweet model.make_response(payload, 140)
+      when "follow"
+        follow payload
+      when "unfollow"
+        unfollow payload
+      when "block"
+        block payload
+      when "mention"
+        pre = payload + " "
+        limit = 140 - pre.size
+        message = "#{pre}#{model.make_statement(limit)}"
+        tweet message
+      when "cheating"
+        tweet payload
+      else
+        log "Don't have behavior for command: #{command}"
+        reply(dm, model.make_response(dm.text))
+      end
+    else
+      #otherwise, just reply like a mention
+      delay(dm_delay) do
+        reply(dm, model.make_response(dm.text))
+      end
     end
   end
 
