@@ -22,15 +22,40 @@ module Ebooks::Boodoo
     array_splitter ||= / *[,;]+ */
     value.split(array_splitter).map(&:strip)
   end
+
+  def make_client
+    Twitter::REST::Client.new do |config|
+      config.consumer_key = @consumer_key
+      config.consumer_secret = @consumer_secret
+      config.access_token = @access_token
+      config.access_token_secret = @access_token_secret
+    end
+  end
 end
 
+## Retweet check based on Really-Existing-RT practices
 class Ebooks::TweetMeta
   def is_retweet?
-    tweet.retweeted_status? || !!tweet.text[/^[RM]T[: ]/i]
+    tweet.retweeted_status? || !!tweet.text[/[RM]T ?[@:]/i]
+  end
+end
+
+class Ebooks::Boodoo::Model < Ebooks::Model
+  def valid_tweet?(tokens, limit)
+    tweet = NLP.reconstruct(tokens)
+    found_banned = $banned_words.any? do |word|
+      re = Regexp.new("\\b#{word}\\b", "i")
+      re.match tweet
+    end
+    tweet.length <= limit && !found_banned && !NLP.unmatched_enclosers?(tweet)
   end
 end
 
 class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
+  @required_fields = ['consumer_key', 'consumer_secret',
+                      'access_token', 'access_token_secret',
+                      'bot_name', 'original']
+
   # A rough error-catch/retry for rate limit, dupe fave, server timeouts
   def catch_twitter
     begin
@@ -83,4 +108,32 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
     end
   end
 
+  def has_model?
+    File.exists? @model_path
+  end
+
+  def has_archive?
+    File.exists? @archive_path
+  end
+
+  def get_archive!
+    @archive = Archive.new(@original, @archive_path, make_client).sync
+  end
+
+  def make_model!
+    log "Updating model: #{@model_path}"
+    Ebooks::Boodoo::Model.consume(@archive_path).save(@model_path)
+    log "Loading model..."
+    @model = Ebooks::Boodoo::Model.load(@model_path)
+  end
+
+  def can_run?
+    missing_fields.empty?
+  end
+
+  def missing_fields
+    @required_fields.select { |field|
+      !send(field).nil? && !send(field).empty?
+    }
+  end
 end

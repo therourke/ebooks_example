@@ -23,7 +23,7 @@ class UserInfo
 end
 
 class CloneBot < BoodooBot
-  attr_accessor :original, :model, :model_path, :auth_name
+  attr_accessor :original, :model, :model_path, :auth_name, :archive_path, :archive
   # alias_method :oauth_token, :access_token
   # alias_method :oauth_token_secret, :access_token_secret
   def configure
@@ -45,6 +45,7 @@ class CloneBot < BoodooBot
     # Array fields are CSV or SSV
     @blacklist =        parse_array(SETTINGS['BLACKLIST'])
     @banned_terms =     parse_array(SETTINGS['BANNED_TERMS'])
+    $banned_terms =     @banned_terms
     @special_terms  =   parse_array(SETTINGS['SPECIAL_TERMS'])
 
     # Fields parsed as Fixnum, Float, or Range:
@@ -63,10 +64,20 @@ class CloneBot < BoodooBot
     @attempts = 0
     @followers = []
     @following = []
+    @archive_path = "corpus/#{@original}.json"
+    @model_path = "model/#{@original}.model"
     # @have_talked = {}
 
-    # load model file
-    load_model!
+    if can_run?
+      get_archive! unless has_archive?
+      make_model! unless has_model?
+    else
+      missing_fields.each {|missing|
+        log "Can't run without #{missing}"
+      }
+      log "Heroku will automatically try again immediately or in 10 minutes..."
+      Kernel.exit(1)
+    end
   end
 
   def top100; @top100 ||= model.keywords.take(100); end
@@ -90,10 +101,11 @@ class CloneBot < BoodooBot
       follow_parity
     end
 
-    # TODO: This throws a weird error.
-    #       Probably don't need it anyway?
-    # @auth_name ||= twitter.user.screen_name
-    # log "Logged in as #{auth_name}"
+    scheduler.interval @refresh_model_interval do
+      log "Refreshing archive/model..."
+      get_archive!
+      make_model!
+    end
   end
 
   def on_direct_message(dm)
@@ -209,8 +221,6 @@ class CloneBot < BoodooBot
     @model = Ebooks::Model.load(model_path)
   end
 end
-
-
 
 CloneBot.new(SETTINGS['BOT_NAME']) do |bot|
   # CloneBot#configure does everything!
