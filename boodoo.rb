@@ -18,6 +18,24 @@ module Ebooks::Boodoo
     value
   end
 
+  def obscure_curse(len)
+    s = []
+    c = ['!', '@', '$', '%', '^', '&', '*']
+    len.times do
+      s << c.sample
+    end
+    s.join('')
+  end
+
+  def obscure_curses(tweet)
+    # TODO: Ignore banned terms that are part of @-mentions
+    $banned_terms.each do |term|
+      re = Regexp.new("\\b#{term}\\b", "i")
+      tweet.gsub!(re, Ebooks::Boodoo.obscure_curse(term.size))
+    end
+    tweet
+  end
+
   def parse_array(value, array_splitter=nil)
     array_splitter ||= / *[,;]+ */
     value.split(array_splitter).map(&:strip)
@@ -37,17 +55,6 @@ end
 class Ebooks::TweetMeta
   def is_retweet?
     tweet.retweeted_status? || !!tweet.text[/[RM]T ?[@:]/i]
-  end
-end
-
-class Ebooks::Boodoo::Model < Ebooks::Model
-  def valid_tweet?(tokens, limit)
-    tweet = NLP.reconstruct(tokens)
-    found_banned = $banned_words.any? do |word|
-      re = Regexp.new("\\b#{word}\\b", "i")
-      re.match tweet
-    end
-    tweet.length <= limit && !found_banned && !NLP.unmatched_enclosers?(tweet)
   end
 end
 
@@ -122,9 +129,9 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
 
   def make_model!
     log "Updating model: #{@model_path}"
-    Ebooks::Boodoo::Model.consume(@archive_path).save(@model_path)
+    Ebooks::Model.consume(@archive_path).save(@model_path)
     log "Loading model..."
-    @model = Ebooks::Boodoo::Model.load(@model_path)
+    @model = Ebooks::Model.load(@model_path)
   end
 
   def can_run?

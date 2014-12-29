@@ -22,8 +22,9 @@ class UserInfo
   end
 end
 
-class CloneBot < BoodooBot
+class BoodooBot
   attr_accessor :original, :model, :model_path, :auth_name, :archive_path, :archive
+  attr_accessor :followers, :following
   # alias_method :oauth_token, :access_token
   # alias_method :oauth_token_secret, :access_token_secret
   def configure
@@ -69,8 +70,8 @@ class CloneBot < BoodooBot
     # @have_talked = {}
 
     if can_run?
-      get_archive! unless has_archive?
-      make_model! unless has_model?
+      get_archive!
+      make_model!
     else
       missing_fields.each {|missing|
         log "Can't run without #{missing}"
@@ -211,6 +212,18 @@ class CloneBot < BoodooBot
     end
   end
 
+  # Prefilter for banned terms before tweeting
+  def tweet(text, *args)
+    text = obscure_curses(text)
+    super(text, *args)
+  end
+
+  # Prefilter for banned terms before replying
+  def reply(ev, text, opts={})
+    text = obscure_curses(text)
+    super(ev, text, opts)
+  end
+
   private
   def load_model!
     return if @model
@@ -222,7 +235,7 @@ class CloneBot < BoodooBot
   end
 end
 
-CloneBot.new(SETTINGS['BOT_NAME']) do |bot|
-  # CloneBot#configure does everything!
+BoodooBot.new(SETTINGS['BOT_NAME']) do |bot|
+  # BoodooBot#configure does everything!
   bot
 end
