@@ -59,7 +59,7 @@ class Ebooks::TweetMeta
 end
 
 class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
-  @required_fields = ['consumer_key', 'consumer_secret',
+  $required_fields = ['consumer_key', 'consumer_secret',
                       'access_token', 'access_token_secret',
                       'bot_name', 'original']
 
@@ -139,8 +139,9 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
   end
 
   def missing_fields
-    @required_fields.select { |field|
-      !send(field).nil? && !send(field).empty?
+    $required_fields.select { |field|
+      p "#{field} = #{send(field)}"
+      send(field).nil? || send(field).empty?
     }
   end
 end
