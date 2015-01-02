@@ -1,0 +1,55 @@
+{
+  "name": "BooDooBooks",
+  "description": "Turn-key _ebooks deployment using twitter_ebooks",
+  "repository": "https://github.com/BooDoo/ebooks_example/tree/deploy",
+  "keywords": [
+    "twitter",
+    "bot",
+    "ebooks"
+  ],
+  "scripts": {
+    "postdeploy": "bundle exec ebooks start"
+  },
+  "addons": [
+    "papertrail:choklad"
+  ],
+  "env": {
+    "LANG": "en_US.UTF-8",
+    "BOT_NAME": "",
+    "SOURCE_USERNAME": "",
+    "CONSUMER_KEY": "",
+    "CONSUMER_SECRET": "",
+    "ACCESS_TOKEN": "",
+    "ACCESS_TOKEN_SECRET": "",
+    "TWEET_INTERVAL": "2m",
+    "TWEET_CHANCE": "0.8",
+    "BLACKLIST": {
+      "required": false,
+      "value": "tinysubversions, dril"
+    },
+    "BANNED_TERMS": {
+      "required": false,
+      "value": "voldemort, evgeny morozov, heroku"
+    },
+    "SPECIAL_TERMS": {
+      "required": false,
+      "value": ""
+    },
+    "DEFAULT_DELAY": "5..60",
+    "DM_DELAY": {
+      "required": false,
+      "value": "0"
+    },
+    "MENTION_DELAY": {
+      "required": false,
+      "value": "5..60"
+    },
+    "TIMELINE_DELAY": {
+      "required": false,
+      "value": "10..600"
+    },
+    "TIMEOUT_SLEEP": "5",
+    "MAX_ERROR_RETRIES": "10",
+    "UPDATE_FOLLOWS_INTERVAL": "90m"
+  }
+}
