@@ -37,11 +37,13 @@ class BoodooBot
     @access_token =       SETTINGS['ACCESS_TOKEN']
     @access_token_secret =SETTINGS['ACCESS_TOKEN_SECRET']
     @tweet_interval =     SETTINGS['TWEET_INTERVAL']
+    @update_follows_interval = SETTINGS['UPDATE_FOLLOWS_INTERVAL']
+    @refresh_model_interval = SETTINGS['REFRESH_MODEL_INTERVAL']
     # @pester_period =      SETTINGS['PESTER_PERIOD']
 
     # String fields forced to downcase:
-    @bot_name =           SETTINGS['BOT_NAME'].downcase
-    @original =           SETTINGS['SOURCE_USERNAME'].downcase
+    @bot_name =           SETTINGS['BOT_NAME']
+    @original =           SETTINGS['SOURCE_USERNAME']
 
     # Array fields are CSV or SSV
     @blacklist =        parse_array(SETTINGS['BLACKLIST'])
@@ -109,23 +111,21 @@ class BoodooBot
     end
   end
 
-  def on_direct_message(dm)
-    from_owner = dm.user.screen_name.downcase == @original
+  def on_message(dm)
+    from_owner = dm.sender.screen_name.downcase == @original.downcase
+    log "[DM from owner? #{from_owner}]"
     if from_owner
       action = dm.text.split.first.downcase
-      strip_re = Regexp.new("^#{command}\s*", "i")
+      strip_re = Regexp.new("^#{action}\s*", "i")
       payload = dm.text.sub(strip_re, "")
       #TODO: Add blacklist/whitelist/reject(banned phrase)
       #TODO? Move this into a DMController class or equivalent?
       case action
       when "tweet"
         tweet model.make_response(payload, 140)
-      when "follow"
-        follow payload
-      when "unfollow"
-        unfollow payload
-      when "block"
-        block payload
+      when "follow", "unfollow", "block"
+        payload = parse_array(payload.gsub("@", ''), / *[,; ]+ */) # Strip @s and make array
+        send(action.to_sym, payload)
       when "mention"
         pre = payload + " "
         limit = 140 - pre.size
@@ -134,7 +134,7 @@ class BoodooBot
       when "cheating"
         tweet payload
       else
-        log "Don't have behavior for command: #{command}"
+        log "Don't have behavior for action: #{action}"
         reply(dm, model.make_response(dm.text))
       end
     else

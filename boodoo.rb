@@ -63,6 +63,13 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
                       'access_token', 'access_token_secret',
                       'bot_name', 'original']
 
+  # Unfollow a user -- OVERRIDE TO FIX TYPO
+  # @param user [String] username or user id
+  def unfollow(user, *args)
+    log "Unfollowing #{user}"
+    twitter.unfollow(user, *args)
+  end
+
   # A rough error-catch/retry for rate limit, dupe fave, server timeouts
   def catch_twitter
     begin
@@ -127,6 +134,16 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
     @archive = Archive.new(@original, @archive_path, make_client).sync
   end
 
+  def block(targets)
+    if targets.kind_of? String
+      targets = parse_array(targets)
+    end
+    targets.each do |target|
+      log "Blocking @#{target}"
+      Twitter::REST::Request.new(@twitter, :post, "1.1/blocks/create.json", {:screen_name => target}).perform
+    end
+  end
+
   def make_model!
     log "Updating model: #{@model_path}"
     Ebooks::Model.consume(@archive_path).save(@model_path)
@@ -140,7 +157,7 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
 
   def missing_fields
     $required_fields.select { |field|
-      p "#{field} = #{send(field)}"
+      # p "#{field} = #{send(field)}"
       send(field).nil? || send(field).empty?
     }
   end
