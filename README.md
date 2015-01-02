@@ -1,19 +1,35 @@
-# ebooks_example
+# boodoo_ebooks
 
-As requested, this is the [twitter_ebooks](https://github.com/mispy/twitter_ebooks) app which I use to run most of my own bots. It tweets one guaranteed tweet every 24h, always responds to interactions, and has some small unprompted interaction probability based on keyword matching.
+A turn-key, beginner-friendly, ready-to-deploy implementation of a traditional \_ebooks bot using Mispy's [twitter_ebooks](https://github.com/mispy/twitter_ebooks) library.
 
 ## Usage
 
-```bash
-git clone https://github.com/mispy/ebooks_example.git
-cd ebooks_example
-bundle install
-ebooks archive username corpus/username.json
-ebooks consume corpus/username.json
-```
+Create your [Twitter app](https://apps.twitter.com) and generate access tokens with *Read, Write and Direct Messages* privileges.
 
-Populate bots.rb with your auth details, the bot username and model name, then:
+[![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy?template=https://github.com/BooDoo/ebooks_example/tree/deploy)
 
-`ebooks start`
+Put your BOT_NAME, SOURCE_USERNAME, and API secrets into Heroku Config Vars using the web dashboard.
 
-Also runs as a Heroku app! See the [twitter_ebooks](https://github.com/mispy/twitter_ebooks) README for more information.
+Scale your app to 1 dyno using the Heroku web dashboard.
+
+Bob's your uncle.
+
+## Default Behavior
+Tweets once on startup.  
+Has 80% chance of tweeting every 2 hours.  
+Responds to mentions/DMs  
+Favorites tweets that it likes.
+
+## Special Features
+- **BLACKLIST**: accounts to not interact with  
+- **BANNED_TERMS**: words or phrases to obscure/censor  
+- DM commands (tweet, follow, unfollow, block, mention...)  
+- Follower parity (periodically compares following/followers and follows/unfollows as needed)  
+- Want something else? Create an [issue](https://github.com/BooDoo/ebooks_example/issues). No promises.
+
+## TODO:
+- Support full archive (via CSV uploaded elsewhere)  
+
+# DISCLAIMER:
+I'm making this because I wrote a two-part tutorial for an older version of the twitter_ebooks gem and my mentions turned into a tech support hellscape for months.  
+Please [create issues](https://github.com/BooDoo/ebooks_example/issues) if you have trouble. 🙏 Please do not tweet at me. 🙏
