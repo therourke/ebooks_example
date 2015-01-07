@@ -7,9 +7,6 @@
     "bot",
     "ebooks"
   ],
-  "scripts": {
-    "postdeploy": "bundle exec ebooks start"
-  },
   "addons": [
     "papertrail:choklad"
   ],
