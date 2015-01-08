@@ -94,6 +94,8 @@ class BoodooBot
 
   def on_startup
     log "I started up!"
+    tweet(model.make_statement)
+
     scheduler.interval @tweet_interval do
       if rand < @tweet_chance
         tweet(model.make_statement)
