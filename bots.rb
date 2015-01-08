@@ -81,6 +81,7 @@ class BoodooBot
   def top100; @top100 ||= model.keywords.take(100); end
   def top20;  @top20  ||= model.keywords.take(20); end
 
+  # Overwrites Ebooks::Bot#delay, but do we gain anything doing so?
   def delay(d, &b)
     d ||= default_delay
     sleep (d || [0]).to_a.sample
@@ -163,8 +164,11 @@ class BoodooBot
     delay(timeline_delay) do
       if very_interesting
         favorite(tweet) if rand < 0.5
-        retweet(tweet) if rand < 0.1
-        reply(tweet, model.make_response(meta(tweet).mentionless, meta(tweet).limit)) if rand < 0.05
+        retweet(tweet) if rand < 0.01
+        if rand < 0.01
+          userinfo(tweet.user.screen_name).pesters_left -= 1
+          reply(tweet, model.make_response(meta(tweet).mentionless, meta(tweet).limit))
+        end
       elsif interesting
         favorite(tweet) if rand < 0.05
         reply(tweet, model.make_response(meta(tweet).mentionless, meta(tweet).limit)) if rand < 0.01
