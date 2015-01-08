@@ -193,7 +193,7 @@ class BoodooBot
   # Only follow our original user or people who are following our original user
   # @param user [Twitter::User]
   def can_follow?(username)
-    @original.nil? || username == @original || twitter.friendship?(username, @original) || twitter.friendship?(username, @original) || twitter.friendship?(username, auth_name)
+    @original.nil? || username == @original || twitter.friendship?(username, @original) || twitter.friendship?(username, @username)
   end
 
   def favorite(tweet)
