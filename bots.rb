@@ -25,8 +25,6 @@ end
 class BoodooBot
   attr_accessor :original, :model, :model_path, :auth_name, :archive_path, :archive
   attr_accessor :followers, :following
-  # alias_method :oauth_token, :access_token
-  # alias_method :oauth_token_secret, :access_token_secret
   def configure
     # create attr_accessors for all SETTINGS fields
     SETTINGS.keys.map(&:to_s).map(&:downcase).each(&Ebooks::Bot.method(:attr_accessor))
@@ -39,7 +37,6 @@ class BoodooBot
     @tweet_interval =     SETTINGS['TWEET_INTERVAL']
     @update_follows_interval = SETTINGS['UPDATE_FOLLOWS_INTERVAL']
     @refresh_model_interval = SETTINGS['REFRESH_MODEL_INTERVAL']
-    # @pester_period =      SETTINGS['PESTER_PERIOD']
 
     # String fields forced to downcase:
     @bot_name =           SETTINGS['BOT_NAME']
@@ -57,7 +54,6 @@ class BoodooBot
     @mention_delay =    parse_range(SETTINGS['MENTION_DELAY']) || parse_range(SETTINGS['DEFAULT_DELAY'])
     @timeline_delay =   parse_range(SETTINGS['TIMELINE_DELAY']) || parse_range(SETTINGS['DEFAULT_DELAY'])
     @tweet_chance =     parse_num(SETTINGS['TWEET_CHANCE'])
-    # @pester_count  =    parse_num(SETTINGS['PESTER_COUNT'])
     @timeout_sleep =    parse_num(SETTINGS['TIMEOUT_SLEEP'])
 
     # from upstream example
@@ -69,7 +65,6 @@ class BoodooBot
     @following = []
     @archive_path = "corpus/#{@original}.json"
     @model_path = "model/#{@original}.model"
-    # @have_talked = {}
 
     if can_run?
       get_archive!
