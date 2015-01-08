@@ -134,14 +134,8 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
     @archive = Archive.new(@original, @archive_path, make_client).sync
   end
 
-  def block(targets)
-    if targets.kind_of? String
-      targets = parse_array(targets)
-    end
-    targets.each do |target|
-      log "Blocking @#{target}"
-      Twitter::REST::Request.new(@twitter, :post, "1.1/blocks/create.json", {:screen_name => target}).perform
-    end
+  def block(*args)
+    twitter.block(*args)
   end
 
   def make_model!
