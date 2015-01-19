@@ -63,11 +63,10 @@ class BoodooBot
     @attempts = 0
     @followers = []
     @following = []
-    @archive_path = "corpus/#{@original}.json"
-    @model_path = "model/#{@original}.model"
+    @archive_path = "corpus/robin.csv"
+    @model_path = "model/robin.model"
 
     if can_run?
-      get_archive!
       make_model!
     else
       missing_fields.each {|missing|
@@ -100,12 +99,6 @@ class BoodooBot
 
     scheduler.interval @update_follows_interval do
       follow_parity
-    end
-
-    scheduler.interval @refresh_model_interval do
-      log "Refreshing archive/model..."
-      get_archive!
-      make_model!
     end
   end
 
@@ -229,8 +222,11 @@ class BoodooBot
   def load_model!
     return if @model
 
-    @model_path ||= "model/#{original}.model"
+    @corpus_path ||= "corpus/robin.csv"
+    @model_path ||= "model/robin.model"
 
+    log "Consuming corpus #{@corpus_path}"
+    Ebooks::Model.consume(@corpus_path).save(@model_path)
     log "Loading model #{model_path}"
     @model = Ebooks::Model.load(model_path)
   end

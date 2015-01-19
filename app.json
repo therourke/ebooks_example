@@ -1,7 +1,7 @@
 {
-  "name": "BooDooBooks",
+  "name": "robinbot",
   "description": "Turn-key _ebooks deployment using twitter_ebooks",
-  "repository": "https://github.com/BooDoo/ebooks_example/tree/deploy",
+  "repository": "https://github.com/BooDoo/ebooks_example/tree/robinbot",
   "keywords": [
     "twitter",
     "bot",
@@ -12,8 +12,8 @@
   ],
   "env": {
     "LANG": "en_US.UTF-8",
-    "BOT_NAME": "",
-    "SOURCE_USERNAME": "",
+    "BOT_NAME": "mu_ebooks",
+    "SOURCE_USERNAME": "calaminii",
     "CONSUMER_KEY": "",
     "CONSUMER_SECRET": "",
     "ACCESS_TOKEN": "",
