@@ -8,16 +8,28 @@
     "ebooks"
   ],
   "addons": [
-    "papertrail:choklad"
+    "papertrail:choklad",
+    "cloudinary:starter"
   ],
   "env": {
     "LANG": "en_US.UTF-8",
     "BOT_NAME": "",
-    "SOURCE_USERNAME": "",
+    "OWNER_ACCOUNTS": {
+      "required": false,
+      "value": ""
+    },
+    "SOURCE_USERNAMES": {
+      "required": false,
+      "value": ""
+    },
     "CONSUMER_KEY": "",
     "CONSUMER_SECRET": "",
     "ACCESS_TOKEN": "",
     "ACCESS_TOKEN_SECRET": "",
+    "CLOUDINARY_URL": {
+      "required": false,
+      "value": ""
+    },
     "TWEET_INTERVAL": "2h",
     "TWEET_CHANCE": "0.8",
     "BLACKLIST": {

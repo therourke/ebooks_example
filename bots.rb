@@ -1,11 +1,12 @@
 require 'twitter_ebooks'
 require_relative 'boodoo'
 require 'dotenv'
+require 'cloudinary'
 
 include Ebooks::Boodoo
 
 # Read defaults and lay env vars on top:
-SETTINGS = Dotenv.load('defaults.env').merge(ENV)
+SETTINGS = Dotenv.load('secrets.env').merge(ENV)
 
 
 # Information about a particular Twitter user we know
