@@ -49,6 +49,46 @@ module Ebooks::Boodoo
       config.access_token_secret = @access_token_secret
     end
   end
+
+  def jsonify(paths)
+    paths.each do |path|
+      name = File.basename(path).split('.')[0]
+      ext = path.split('.')[-1]
+      new_path = name + ".json"
+      lines = []
+      id = nil
+
+      if ext.downcase == "json"
+        log "Taking no action on JSON corpus at #{path}"
+        return
+      end
+
+      content = File.read(path, :encoding => 'utf-8')
+
+      if ext.downcase == "csv" #from twitter archive
+        log "Reading CSV corpus from #{path}"
+        content = CSV.parse(content)
+        header = content.shift
+        text_col = header.index('text')
+        id_col = header.index('tweet_id')
+        lines = content.map do |tweet|
+          id = tweet[id_col].empty? ? 0 : tweet[id_col]
+          {id: id, text: tweet[text_col]}
+        end
+      else
+        log "Reading plaintext corpus from #{path}"
+        lines = content.split("\n").map do |line|
+          {id: 0, text: line}
+        end
+      end
+
+      # BELOW IS FOR FILE-SYSTEM; NEED TO ALTER FOR CLOUDINARY/REQUEST?
+      File.open(new_path, 'w') do |f|
+        log "Writing #{lines.length} lines to #{new_path}"
+        f.write(JSON.pretty_generate(lines))
+      end
+    end
+  end
 end
 
 ## Retweet check based on Really-Existing-RT practices
@@ -151,7 +191,7 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
 
   def missing_fields
     $required_fields.select { |field|
-      # p "#{field} = #{send(field)}"
+      # log "#{field} = #{send(field)}"
       send(field).nil? || send(field).empty?
     }
   end
