@@ -1,13 +1,11 @@
 require 'twitter_ebooks'
 require_relative 'boodoo'
 require 'dotenv'
-require 'cloudinary'
 
 include Ebooks::Boodoo
 
 # Read defaults and lay env vars on top:
 SETTINGS = Dotenv.load('secrets.env').merge(ENV)
-
 
 # Information about a particular Twitter user we know
 class UserInfo
@@ -68,7 +66,7 @@ class BoodooBot
     @model_path = "model/#{@original}.model"
 
     if can_run?
-      get_archive!
+      update_archive!
       make_model!
     else
       missing_fields.each {|missing|
@@ -105,7 +103,7 @@ class BoodooBot
 
     scheduler.interval @refresh_model_interval do
       log "Refreshing archive/model..."
-      get_archive!
+      update_archive!
       make_model!
     end
   end

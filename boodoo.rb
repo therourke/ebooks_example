@@ -1,4 +1,6 @@
 require 'twitter_ebooks'
+require 'cloudinary'
+
 include Ebooks
 
 module Ebooks::Boodoo
@@ -162,6 +164,10 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
     end
   end
 
+  def block(*args)
+    twitter.block(*args)
+  end
+
   def has_model?
     File.exists? @model_path
   end
@@ -170,12 +176,8 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
     File.exists? @archive_path
   end
 
-  def get_archive!
+  def update_archive!
     @archive = Archive.new(@original, @archive_path, make_client).sync
-  end
-
-  def block(*args)
-    twitter.block(*args)
   end
 
   def make_model!
@@ -183,6 +185,46 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
     Ebooks::Model.consume(@archive_path).save(@model_path)
     log "Loading model..."
     @model = Ebooks::Model.load(@model_path)
+  end
+
+  def upload_archive
+    log "Uploading JSON archive ~~TO THE CLOUD~~..."
+    res = Cloudinary::Uploader.upload(@archive_path, :resource_type=>:raw, :public_id=>File.basename(@archive_path) )
+    log "Upload complete!"
+    @archive_url = Cloudinary::Utils.cloudinary_url(File.basename(@archive_path), :resource_type=>:raw)
+  end
+
+  def upload_model
+    log "Uploading bot model ~~TO THE CLOUD~~..."
+    res = Cloudinary::Uploader.upload(@model_path, :resource_type=>:raw, :public_id=>File.basename(@model_path) )
+    log "Upload complete!"
+    @model_url = Cloudinary::Utils.cloudinary_url(File.basename(@model_path), :resource_type=>:raw)
+  end
+
+  def fetch_archive
+    log "Fetching JSON archive ~~~FROM THE CLOUD~~~"
+    archive_url = Cloudinary::Utils.cloudinary_url(File.basename(@archive_path), :resource_type=>:raw)
+    archive_content = Cloudinary::Downloader.download(archive_url))
+    if archive_content.empty?
+      log "WARNING: JSON archive not found ~~~IN THE CLOUD~~~"
+      nil
+    else
+      log "Download complete!"
+      archive_content
+    end
+  end
+
+  def fetch_model
+    log "Fetching bot model ~~~FROM THE CLOUD~~~"
+    model_url = Cloudinary::Utils.cloudinary_url(File.basename(@model_path), :resouce_type=>:raw)
+    model_content = Cloudinary::Downloader.download(model_url)
+    if model_content.empty?
+      log "WARNING: bot model not found ~~~IN THE CLOUD~~~"
+      nil
+    else
+      log "Download complete!"
+      model_content
+    end
   end
 
   def can_run?
