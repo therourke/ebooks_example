@@ -225,16 +225,6 @@ class BoodooBot
     text = obscure_curses(text)
     super(ev, text, opts)
   end
-
-  private
-  def load_model!
-    return if @model
-
-    @model_path ||= "model/#{original}.model"
-
-    log "Loading model #{model_path}"
-    @model = Ebooks::Model.load(model_path)
-  end
 end
 
 BoodooBot.new(SETTINGS['BOT_NAME']) do |bot|
