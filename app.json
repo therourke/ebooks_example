@@ -1,7 +1,7 @@
 {
   "name": "BooDooBooks",
   "description": "Turn-key _ebooks deployment using twitter_ebooks",
-  "repository": "https://github.com/BooDoo/ebooks_example/tree/deploy",
+  "repository": "https://github.com/BooDoo/ebooks_example/tree/persist-ckoudinary",
   "keywords": [
     "twitter",
     "bot",
@@ -14,11 +14,11 @@
   "env": {
     "LANG": "en_US.UTF-8",
     "BOT_NAME": "",
-    "OWNER_ACCOUNTS": {
+    "OWNER_ACCOUNT": {
       "required": false,
       "value": ""
     },
-    "SOURCE_USERNAMES": {
+    "SOURCE_USERNAME": {
       "required": false,
       "value": ""
     },
@@ -59,6 +59,7 @@
     },
     "TIMEOUT_SLEEP": "5",
     "MAX_ERROR_RETRIES": "10",
-    "UPDATE_FOLLOWS_INTERVAL": "90m"
+    "UPDATE_FOLLOWS_INTERVAL": "90m",
+    "UPDATE_ARCHIVE_INTERVAL": "8h"
   }
 }

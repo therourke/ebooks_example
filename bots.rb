@@ -5,7 +5,7 @@ require 'dotenv'
 include Ebooks::Boodoo
 
 # Read defaults and lay env vars on top:
-SETTINGS = Dotenv.load('secrets.env').merge(ENV)
+SETTINGS = Dotenv.load('defaults.env').merge(ENV)
 
 # Information about a particular Twitter user we know
 class UserInfo
@@ -104,7 +104,7 @@ class BoodooBot
       follow_parity
     end
 
-    scheduler.interval @refresh_model_interval do
+    scheduler.interval @update_archive_interval do
       log "Refreshing archive/model..."
       # update_archive!
       # make_model!
