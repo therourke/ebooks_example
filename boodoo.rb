@@ -332,10 +332,6 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
     end
   end
 
-  def block(*args)
-    twitter.block(*args)
-  end
-
   def make_model!
     log "Updating model: #{@model_path}"
     Ebooks::Model.consume(@archive_path).save(@model_path)
