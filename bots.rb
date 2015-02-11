@@ -65,9 +65,12 @@ class BoodooBot
     @archive_path = "corpus/#{@original}.json"
     @model_path = "model/#{@original}.model"
 
+    log "WARNING: Cloudinary is not configured. Will not persist to cloud." unless has_cloud?
+
     if can_run?
-      update_archive!
-      make_model!
+      log "This can run!"
+      @archive = CloudArchive.new(original, archive_path, twitter)
+      @model = CloudModel.consume(@archive_path)
     else
       missing_fields.each {|missing|
         log "Can't run without #{missing}"
@@ -103,8 +106,11 @@ class BoodooBot
 
     scheduler.interval @refresh_model_interval do
       log "Refreshing archive/model..."
-      update_archive!
-      make_model!
+      # update_archive!
+      # make_model!
+      @archive.sync
+      @archive.persist
+      @model.consume(@archive)
     end
   end
 

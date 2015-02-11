@@ -3,7 +3,19 @@ require 'cloudinary'
 
 include Ebooks
 
+## Retweet check based on Really-Existing-RT practices
+class Ebooks::TweetMeta
+  def is_retweet?
+    tweet.retweeted_status? || !!tweet.text[/[RM]T ?[@:]/i]
+  end
+end
+
 module Ebooks::Boodoo
+  # check if we're configured to use Cloudinary for cloud storage
+  def has_cloud?
+    (ENV['CLOUDINARY_URL'].nil? || ENV['CLOUDINARY_URL'].empty?) ? false : true
+  end
+
   # supports Ruby Range literal, Fixnum, or Float as string
   def parse_num(value)
     eval(value.to_s[/^\d+(?:\.{1,3})?\d*$/].to_s)
@@ -93,10 +105,166 @@ module Ebooks::Boodoo
   end
 end
 
-## Retweet check based on Really-Existing-RT practices
-class Ebooks::TweetMeta
-  def is_retweet?
-    tweet.retweeted_status? || !!tweet.text[/[RM]T ?[@:]/i]
+class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
+  def initialize(username, path=nil, client=nil)
+    # Just bail on everything if we aren't using Cloudinary
+    return super unless has_cloud?
+    # Otherwise duplicate a lot of super(), but also use ~~THE CLOUD~~
+    @username = username
+    @path = path || "corpus/#{username}.json"
+    if File.directory?(@path)
+      @path = File.join(@path, "#{username}.json")
+    end
+    @basename = File.basename(@path)
+    @client = client || Boodoo.make_client
+    @url = Cloudinary::Utils.cloudinary_url(@basename, :resource_type=>:raw)
+    fetch!
+    parse!
+    sync
+    # save! # #sync automatically saves
+    persist
+
+    if @tweets.empty?
+      log "New archive for @#{@username} at #{@url}"
+    else
+      log "Currently #{@tweets.length} tweets for #{@username}"
+    end
+  end
+
+  def persist(public_id=nil)
+    public_id ||= @basename
+    log "Deleting out-dated archive ~~~FROM THE CLOUD~~~"
+    Cloudinary::Api.delete_resources(public_id, :resource_type=>:raw)
+    log "Uploading JSON archive ~~TO THE CLOUD~~"
+    res = Cloudinary::Uploader.upload(@path, :resource_type=>:raw, :public_id=>public_id, :invalidate=>true)
+    log "Upload complete!"
+    res
+  end
+
+  def persist!
+    persist(@basename)
+  end
+
+  def parse(content=nil)
+    content = content || @content || '[]'
+    JSON.parse(content, symbolize_names: true)
+  end
+
+  def parse!(content=nil)
+    @tweets = parse(content)
+  end
+
+  def save(path=nil)
+    path ||= @path
+    File.open(path, 'w') do |f|
+      f.write(JSON.pretty_generate(@tweets))
+    end
+  end
+
+  def save!
+    save(@path)
+  end
+
+  def fetch(url=nil)
+    url ||= @url
+    log "Fetching JSON archive ~~~FROM THE CLOUD~~~"
+    content = Cloudinary::Downloader.download(url)
+    if content.empty?
+      log "WARNING: JSON archive not found ~~~IN THE CLOUD~~~"
+      nil
+    else
+      log "Download complete!"
+      content
+    end
+  end
+
+  def fetch!
+    @content = fetch
+  end
+end
+
+class Ebooks::Boodoo::CloudModel < Ebooks::Model
+  # Read a saved model from marshaled content instead of file
+  # @param content [String]
+  # @return [Ebooks::Boodoo::CloudModel]
+  def self.parse(content)
+    model = Model.new
+    model.instance_eval do
+      props = Marshal.load(content)
+      @tokens = props[:tokens]
+      @sentences = props[:sentences]
+      @mentions = props[:mentions]
+      @keywords = props[:keywords]
+    end
+    model
+  end
+
+  def initialize(username, path=nil)
+    return Ebooks::Model.new unless has_cloud?
+    @path = path || "corpus/#{username}.model"
+    if File.directory?(@path)
+      @path = File.join(@path, "#{username}.model")
+    end
+    super()
+    @basename = File.basename(@path)
+  end
+
+  # Create a model from JSON string
+  # @content [String] Ebooks-style JSON twitter archive
+  # @return [Ebooks::Boodoo::CloudModel]
+  def from_json(content)
+    log "Reading json corpus with length #{content.size}"
+    lines = JSON.parse(content).map do |tweet|
+      tweet['text']
+    end
+    consume_lines(lines)
+  end
+
+  def persist(public_id=nil)
+    public_id ||= @basename
+    log "Deleting old model ~~~FROM THE CLOUD~~~"
+    Cloudinary::Api.delete_resources(@basename, :resource_type=>:raw)
+    log "Uploading bot model ~~TO THE CLOUD~~"
+    res = Cloudinary::Uploader.upload(@path, :resource_type=>:raw, :public_id=>public_id, :invalidate=>true)
+    log "Upload complete!"
+    res
+  end
+
+  def persist!
+    persist(@basename)
+  end
+
+  def parse(content=nil)
+    props = Marshal.load(content)
+  end
+
+  def parse!(content=nil)
+    props = parse(content)
+    @tokens = props[:tokens]
+    @sentences = props[:sentences]
+    @mentions = props[:mentions]
+    @keywords = props[:keywords]
+  end
+
+  def save!
+    save(@path)
+  end
+
+  def fetch(url=nil)
+    url ||= @url
+    log "Fetching bot model ~~~FROM THE CLOUD~~~"
+    content = Cloudinary::Downloader.download(url)
+    if content.empty?
+      log "WARNING: bot model not found ~~~IN THE CLOUD~~~"
+      nil
+    else
+      log "Download complete!"
+      content
+    end
+  end
+
+  def fetch!
+    @content = fetch
   end
 end
 
@@ -168,63 +336,11 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
     twitter.block(*args)
   end
 
-  def has_model?
-    File.exists? @model_path
-  end
-
-  def has_archive?
-    File.exists? @archive_path
-  end
-
-  def update_archive!
-    @archive = Archive.new(@original, @archive_path, make_client).sync
-  end
-
   def make_model!
     log "Updating model: #{@model_path}"
     Ebooks::Model.consume(@archive_path).save(@model_path)
     log "Loading model..."
     @model = Ebooks::Model.load(@model_path)
-  end
-
-  def upload_archive
-    log "Uploading JSON archive ~~TO THE CLOUD~~..."
-    res = Cloudinary::Uploader.upload(@archive_path, :resource_type=>:raw, :public_id=>File.basename(@archive_path) )
-    log "Upload complete!"
-    @archive_url = Cloudinary::Utils.cloudinary_url(File.basename(@archive_path), :resource_type=>:raw)
-  end
-
-  def upload_model
-    log "Uploading bot model ~~TO THE CLOUD~~..."
-    res = Cloudinary::Uploader.upload(@model_path, :resource_type=>:raw, :public_id=>File.basename(@model_path) )
-    log "Upload complete!"
-    @model_url = Cloudinary::Utils.cloudinary_url(File.basename(@model_path), :resource_type=>:raw)
-  end
-
-  def fetch_archive
-    log "Fetching JSON archive ~~~FROM THE CLOUD~~~"
-    archive_url = Cloudinary::Utils.cloudinary_url(File.basename(@archive_path), :resource_type=>:raw)
-    archive_content = Cloudinary::Downloader.download(archive_url))
-    if archive_content.empty?
-      log "WARNING: JSON archive not found ~~~IN THE CLOUD~~~"
-      nil
-    else
-      log "Download complete!"
-      archive_content
-    end
-  end
-
-  def fetch_model
-    log "Fetching bot model ~~~FROM THE CLOUD~~~"
-    model_url = Cloudinary::Utils.cloudinary_url(File.basename(@model_path), :resouce_type=>:raw)
-    model_content = Cloudinary::Downloader.download(model_url)
-    if model_content.empty?
-      log "WARNING: bot model not found ~~~IN THE CLOUD~~~"
-      nil
-    else
-      log "Download complete!"
-      model_content
-    end
   end
 
   def can_run?
