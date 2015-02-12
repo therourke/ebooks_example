@@ -1,6 +1,7 @@
 require 'twitter_ebooks'
 require_relative 'boodoo'
 require 'dotenv'
+require 'time_difference'
 
 include Ebooks::Boodoo
 
@@ -62,6 +63,7 @@ class BoodooBot
     @attempts = 0
     @followers = []
     @following = []
+    @initial_corpus_file = SETTINGS['INITIAL_CORPUS_FILE']
     @archive_path = "corpus/#{@original}.json"
     @model_path = "model/#{@original}.model"
 

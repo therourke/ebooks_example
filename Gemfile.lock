@@ -1,6 +1,12 @@
 GEM
   remote: http://rubygems.org/
   specs:
+    activesupport (4.2.0)
+      i18n (~> 0.7)
+      json (~> 1.7, >= 1.7.7)
+      minitest (~> 5.1)
+      thread_safe (~> 0.3, >= 0.3.4)
+      tzinfo (~> 1.1)
     addressable (2.3.7)
     awesome_print (1.6.1)
     aws_cf_signer (0.1.3)
@@ -27,11 +33,13 @@ GEM
     http (0.6.3)
       http_parser.rb (~> 0.6.0)
     http_parser.rb (0.6.0)
+    i18n (0.7.0)
     json (1.8.2)
     memoizable (0.4.2)
       thread_safe (~> 0.3, >= 0.3.1)
     method_source (0.8.2)
     mime-types (2.4.3)
+    minitest (5.5.1)
     multipart-post (2.0.0)
     naught (1.0.0)
     netrc (0.10.2)
@@ -49,6 +57,8 @@ GEM
     simple_oauth (0.3.1)
     slop (3.6.0)
     thread_safe (0.3.4)
+    time_difference (0.3.2)
+      activesupport
     twitter (5.13.0)
       addressable (~> 2.3)
       buftok (~> 0.2.0)
@@ -80,4 +90,5 @@ PLATFORMS
 DEPENDENCIES
   cloudinary
   dotenv
+  time_difference
   twitter_ebooks (= 3.0.8)

@@ -348,11 +348,7 @@ class Ebooks::Boodoo::BoodooBot < Ebooks::Bot
 
   # Override Ebooks::Bot#blacklisted? to ensure lower<=>lower check
   def blacklisted?(username)
-    if @blacklist.map(&:downcase).include?(username.downcase)
-      true
-    else
-      false
-    end
+    @blacklist.map(&:downcase).include?(username.downcase)
   end
 
   # Follow new followers, unfollow lost followers

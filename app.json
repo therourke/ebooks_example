@@ -26,6 +26,10 @@
     "CONSUMER_SECRET": "",
     "ACCESS_TOKEN": "",
     "ACCESS_TOKEN_SECRET": "",
+    "INITIAL_CORPUS_FILE": {
+      "required": false,
+      "value": "tweets.csv"
+    }
     "CLOUDINARY_URL": {
       "required": false,
       "value": ""
