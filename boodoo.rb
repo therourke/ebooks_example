@@ -64,43 +64,59 @@ module Ebooks::Boodoo
     end
   end
 
-  def jsonify(paths)
-    paths.each do |path|
-      name = File.basename(path).split('.')[0]
-      ext = path.split('.')[-1]
-      new_path = name + ".json"
-      lines = []
-      id = nil
+  def minify_tweets(tweets)
+    log "Minifying tweets..."
+    tweets.map do |tweet|
+      {id: tweet[:id], text: tweet[:text]}
+    end
+  end
 
-      if ext.downcase == "json"
-        log "Taking no action on JSON corpus at #{path}"
-        return
+  def jsonify(path, new_name=nil)
+    name = File.basename(path).split('.')[0]
+    ext = path.split('.')[-1]
+    new_name ||= name
+    new_path = new_name + ".json"
+    lines = []
+    id = nil
+
+    content = File.read(path, :encoding => 'utf-8')
+
+    if ext.downcase == "json"
+      log "Minifying JSON corpus at #{path}"
+      lines = minify_tweets(JSON.parse(content, :symbolize_names=>true))
+    elsif ext.downcase == "csv" #from twitter archive
+      log "Reading CSV corpus from #{path}"
+      content = CSV.parse(content)
+      header = content.shift
+      text_col = header.index('text')
+      id_col = header.index('tweet_id')
+      lines = content.map do |tweet|
+        id = tweet[id_col].empty? ? 0 : tweet[id_col]
+        {id: id, text: tweet[text_col]}
       end
-
-      content = File.read(path, :encoding => 'utf-8')
-
-      if ext.downcase == "csv" #from twitter archive
-        log "Reading CSV corpus from #{path}"
-        content = CSV.parse(content)
-        header = content.shift
-        text_col = header.index('text')
-        id_col = header.index('tweet_id')
-        lines = content.map do |tweet|
-          id = tweet[id_col].empty? ? 0 : tweet[id_col]
-          {id: id, text: tweet[text_col]}
-        end
-      else
-        log "Reading plaintext corpus from #{path}"
-        lines = content.split("\n").map do |line|
-          {id: 0, text: line}
-        end
+    else
+      log "Reading plaintext corpus from #{path}"
+      lines = content.split("\n").map do |line|
+        {id: 0, text: line}
       end
+    end
 
-      # BELOW IS FOR FILE-SYSTEM; NEED TO ALTER FOR CLOUDINARY/REQUEST?
-      File.open(new_path, 'w') do |f|
-        log "Writing #{lines.length} lines to #{new_path}"
-        f.write(JSON.pretty_generate(lines))
-      end
+    File.open(new_path, 'w') do |f|
+      log "Writing #{lines.length} lines to #{new_path}"
+      f.write(JSON.generate(lines))
+    end
+
+    if has_cloud?
+      public_id = new_path
+      # log "Deleting JSON archive ~~~FROM THE CLOUD~~~"
+      # Cloudinary::Api.delete_resources(public_id, :resource_type=>:raw)
+      log "Uploading JSON archive ~~TO THE CLOUD~~"
+      res = Cloudinary::Uploader.upload(new_path, :resource_type=>:raw, :public_id=>public_id, :invalidate=>true)
+      log "Upload complete!"
+      res["url"]
+    else
+      log "Can't find ~~~THE CLOUD~~~, not uploading JSON archive."
+      nil
     end
   end
 end
@@ -120,9 +136,8 @@ class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
     @url = Cloudinary::Utils.cloudinary_url(@basename, :resource_type=>:raw)
     fetch!
     parse!
-    sync
-    # save! # #sync automatically saves
-    persist
+    new_tweets = sync.class != IO
+    persist if new_tweets
 
     if @tweets.empty?
       log "New archive for @#{@username} at #{@url}"
@@ -131,12 +146,21 @@ class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
     end
   end
 
+  def minify!
+    @tweets = minify_tweets(@tweets)
+  end
+
+  def minify
+    minify_tweets(@tweets)
+  end
+
   def persist(public_id=nil)
     public_id ||= @basename
-    log "Deleting out-dated archive ~~~FROM THE CLOUD~~~"
-    Cloudinary::Api.delete_resources(public_id, :resource_type=>:raw)
+    # log "Deleting out-dated archive ~~~FROM THE CLOUD~~~"
+    # Cloudinary::Api.delete_resources(public_id, :resource_type=>:raw)
     log "Uploading JSON archive ~~TO THE CLOUD~~"
     res = Cloudinary::Uploader.upload(@path, :resource_type=>:raw, :public_id=>public_id, :invalidate=>true)
+    @url = res["url"]
     log "Upload complete!"
     res
   end
@@ -154,10 +178,11 @@ class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
     @tweets = parse(content)
   end
 
-  def save(path=nil)
+  def save(path=nil, minify=true)
     path ||= @path
+    output = minify ? JSON.generate(minify) : JSON.pretty_generate(@tweets)
     File.open(path, 'w') do |f|
-      f.write(JSON.pretty_generate(@tweets))
+      f.write(output)
     end
   end
 
@@ -168,7 +193,7 @@ class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
   def fetch(url=nil)
     url ||= @url
     log "Fetching JSON archive ~~~FROM THE CLOUD~~~"
-    content = Cloudinary::Downloader.download(url)
+    content = Cloudinary::Downloader.download(url, :resource_type=>:raw)
     if content.empty?
       log "WARNING: JSON archive not found ~~~IN THE CLOUD~~~"
       nil
@@ -188,7 +213,7 @@ class Ebooks::Boodoo::CloudModel < Ebooks::Model
   # @param content [String]
   # @return [Ebooks::Boodoo::CloudModel]
   def self.parse(content)
-    model = Model.new
+    model = CloudModel.new
     model.instance_eval do
       props = Marshal.load(content)
       @tokens = props[:tokens]
@@ -196,6 +221,12 @@ class Ebooks::Boodoo::CloudModel < Ebooks::Model
       @mentions = props[:mentions]
       @keywords = props[:keywords]
     end
+    model
+  end
+
+  def self.from_json(content, is_file)
+    model = CloudModel.new
+    model.from_json(content, is_file)
     model
   end
 
@@ -207,25 +238,32 @@ class Ebooks::Boodoo::CloudModel < Ebooks::Model
     end
     super()
     @basename = File.basename(@path)
+    @url = Cloudinary::Utils.cloudinary_url(@basename, :resource_type=>:raw)
   end
 
   # Create a model from JSON string
-  # @content [String] Ebooks-style JSON twitter archive
+  # @content [String/Array] Ebooks-style JSON twitter archive (pre-parsed)
   # @return [Ebooks::Boodoo::CloudModel]
-  def from_json(content)
-    log "Reading json corpus with length #{content.size}"
-    lines = JSON.parse(content).map do |tweet|
-      tweet['text']
+  def from_json(content, is_file=false)
+    content = File.read(content, :encoding=>'utf-8') if is_file
+    if content.respond_to?(:upcase)
+      lines = JSON.parse(content).map do |tweet|
+        tweet['text']
+      end
+    else
+      lines = content
     end
+    log "Reading json corpus with #{lines.size} lines"
     consume_lines(lines)
   end
 
   def persist(public_id=nil)
     public_id ||= @basename
-    log "Deleting old model ~~~FROM THE CLOUD~~~"
-    Cloudinary::Api.delete_resources(@basename, :resource_type=>:raw)
+    # log "Deleting old model ~~~FROM THE CLOUD~~~"
+    # Cloudinary::Api.delete_resources(@basename, :resource_type=>:raw)
     log "Uploading bot model ~~TO THE CLOUD~~"
     res = Cloudinary::Uploader.upload(@path, :resource_type=>:raw, :public_id=>public_id, :invalidate=>true)
+    @url = res["url"]
     log "Upload complete!"
     res
   end

@@ -70,7 +70,7 @@ class BoodooBot
     if can_run?
       log "This can run!"
       @archive = CloudArchive.new(original, archive_path, twitter)
-      @model = CloudModel.consume(@archive_path)
+      @model = CloudModel.new(@original, @model_path).from_json(@archive_path, true)
     else
       missing_fields.each {|missing|
         log "Can't run without #{missing}"
