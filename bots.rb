@@ -6,7 +6,7 @@ require 'time_difference'
 include Ebooks::Boodoo
 
 # Read defaults and lay env vars on top:
-SETTINGS = Dotenv.load('defaults.env').merge(ENV)
+SETTINGS = Dotenv.load('secrets.env').merge(ENV)
 
 # Information about a particular Twitter user we know
 class UserInfo
@@ -71,8 +71,17 @@ class BoodooBot
 
     if can_run?
       log "This can run!"
-      @archive = CloudArchive.new(original, archive_path, twitter)
-      @model = CloudModel.new(@original, @model_path).from_json(@archive_path, true)
+      if initial_corpus_file.blank? || in_cloud?(File.basename(@archive_path))
+        log "Skipping initial corpus consumption"
+        @archive = CloudArchive.new(original, archive_path, twitter)
+        @model = CloudModel.new(@original, @model_path).from_json(@archive_path, true)
+      else
+        log "Consuming initial corpus..."
+        archive_json = jsonify(initial_corpus_file, :from_cloud=>has_cloud?, :new_name=>original, :to_cloud=>false)
+        log "archive_json length: #{archive_json.size}"
+        @archive = CloudArchive.new(original, archive_path, twitter, :local=>true, :content=>archive_json)
+        # @model = CloudModel.new(original, model_path).from_json(archive_json, false)
+      end
     else
       missing_fields.each {|missing|
         log "Can't run without #{missing}"

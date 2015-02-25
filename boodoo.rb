@@ -1,5 +1,6 @@
 require 'twitter_ebooks'
 require 'cloudinary'
+require 'time_difference'
 
 include Ebooks
 
@@ -11,9 +12,25 @@ class Ebooks::TweetMeta
 end
 
 module Ebooks::Boodoo
+
+  def self.age(since, now: Time.now, unit: :in_hours)
+    unit = unit.to_sym
+    TimeDifference.between(since, now).method(unit).call
+  end
+
   # check if we're configured to use Cloudinary for cloud storage
   def has_cloud?
     (ENV['CLOUDINARY_URL'].nil? || ENV['CLOUDINARY_URL'].empty?) ? false : true
+  end
+
+  def in_cloud?(public_id, resource_type=:raw)
+    return false if !has_cloud?
+    begin
+      Cloudinary::Api.resource(public_id, :resource_type=>resource_type)
+      true
+    rescue Cloudinary::Api::NotFound
+      false
+    end
   end
 
   # supports Ruby Range literal, Fixnum, or Float as string
@@ -55,12 +72,12 @@ module Ebooks::Boodoo
     value.split(array_splitter).map(&:strip)
   end
 
-  def make_client
+  def new_client
     Twitter::REST::Client.new do |config|
-      config.consumer_key = @consumer_key
-      config.consumer_secret = @consumer_secret
-      config.access_token = @access_token
-      config.access_token_secret = @access_token_secret
+      config.consumer_key = ENV['CONSUMER_KEY']
+      config.consumer_secret = ENV['CONSUMER_SECRET']
+      config.access_token = ENV['ACCESS_TOKEN']
+      config.access_token_secret = ENV['ACCESS_TOKEN_SECRET']
     end
   end
 
@@ -71,15 +88,24 @@ module Ebooks::Boodoo
     end
   end
 
-  def jsonify(path, new_name=nil)
-    name = File.basename(path).split('.')[0]
+  def jsonify(path, write_file: true, from_cloud: false, to_cloud: true, new_name: nil)
+    basename = File.basename(path)
+    name = basename.split('.')[0]
     ext = path.split('.')[-1]
     new_name ||= name
-    new_path = new_name + ".json"
+
+    new_path = "corpus/#{new_name}.json"
     lines = []
     id = nil
 
-    content = File.read(path, :encoding => 'utf-8')
+    #TODO: Move this to its own method: find_corpus(basename)
+    if from_cloud && in_cloud?(basename)
+      log "Reading initial corpus file ~~~FROM CLOUD~~~"
+      content = Cloudinary::Downloader.download(path, :resource_type=>:raw)
+    else
+      log "Reading local initial corpus file"
+      content = File.read(path, :encoding => 'utf-8')
+    end
 
     if ext.downcase == "json"
       log "Minifying JSON corpus at #{path}"
@@ -104,37 +130,100 @@ module Ebooks::Boodoo
     File.open(new_path, 'w') do |f|
       log "Writing #{lines.length} lines to #{new_path}"
       f.write(JSON.generate(lines))
-    end
+    end if write_file
 
-    if has_cloud?
+    #TODO: Save res["url"] to CloudArchive somehow?
+    if to_cloud && has_cloud?
       public_id = new_path
       # log "Deleting JSON archive ~~~FROM THE CLOUD~~~"
       # Cloudinary::Api.delete_resources(public_id, :resource_type=>:raw)
       log "Uploading JSON archive ~~TO THE CLOUD~~"
       res = Cloudinary::Uploader.upload(new_path, :resource_type=>:raw, :public_id=>public_id, :invalidate=>true)
-      log "Upload complete!"
+      log "Upload complete"
       res["url"]
     else
-      log "Can't find ~~~THE CLOUD~~~, not uploading JSON archive."
-      nil
+      JSON.generate(lines)
     end
   end
 end
 
+class Ebooks::Archive
+  def self.exist?(basename)
+    File.exist?("corpus/#{basename}")
+  end
+
+  def parse(content=nil)
+    content = content || @content || '[]'
+    JSON.parse(content, symbolize_names: true)
+  end
+
+  def parse!(content=nil)
+    @tweets = parse(content)
+  end
+
+ def minify
+    minify_tweets(@tweets)
+  end
+
+  def minify!
+    @tweets = minify_tweets(@tweets)
+  end
+
+ def persist(path=nil)
+    path ||= @path
+    log "Saving JSON archive locally..."
+    File.open(path, 'w') do |f|
+      f.write(JSON.pretty_generate(@tweets))
+    end
+    log "Save complete!"
+    @path
+  end
+
+  def persist!
+    persist(@path)
+  end
+
+  def save(path=nil)
+    persist(path)
+  end
+
+  def save!
+    save(@path)
+  end
+end
+
 class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
-  def initialize(username, path=nil, client=nil)
+  include Ebooks::Boodoo
+
+  def self.exist?(username)
+    begin
+      Cloudinary::Api.resource("#{username}.json", :resource_type=>:raw)
+      true
+    rescue Cloudinary::Api::NotFound
+      false
+    end
+  end
+
+  def initialize(username, path=nil, client=nil, options={})
     # Just bail on everything if we aren't using Cloudinary
-    return super unless has_cloud?
+    return super(username, path, client) unless has_cloud?
     # Otherwise duplicate a lot of super(), but also use ~~THE CLOUD~~
+    local = options.delete(:local) || false
+    content = options.delete(:content)
     @username = username
     @path = path || "corpus/#{username}.json"
     if File.directory?(@path)
       @path = File.join(@path, "#{username}.json")
     end
     @basename = File.basename(@path)
-    @client = client || Boodoo.make_client
+    @client = client || new_client
     @url = Cloudinary::Utils.cloudinary_url(@basename, :resource_type=>:raw)
-    fetch!
+    @public_id = @basename
+    if local || content
+      @content = content || File.read(@path)
+    else
+      fetch!
+    end
     parse!
     new_tweets = sync.class != IO
     persist if new_tweets
@@ -144,14 +233,6 @@ class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
     else
       log "Currently #{@tweets.length} tweets for #{@username}"
     end
-  end
-
-  def minify!
-    @tweets = minify_tweets(@tweets)
-  end
-
-  def minify
-    minify_tweets(@tweets)
   end
 
   def persist(public_id=nil)
@@ -165,29 +246,13 @@ class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
     res
   end
 
-  def persist!
-    persist(@basename)
-  end
-
-  def parse(content=nil)
-    content = content || @content || '[]'
-    JSON.parse(content, symbolize_names: true)
-  end
-
-  def parse!(content=nil)
-    @tweets = parse(content)
-  end
-
+  # Unused method?
   def save(path=nil, minify=true)
     path ||= @path
     output = minify ? JSON.generate(minify) : JSON.pretty_generate(@tweets)
     File.open(path, 'w') do |f|
       f.write(output)
     end
-  end
-
-  def save!
-    save(@path)
   end
 
   def fetch(url=nil)
@@ -205,6 +270,86 @@ class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
 
   def fetch!
     @content = fetch
+  end
+end
+
+class Ebooks::Model
+  # add methods here to match Boodoo::CloudModel
+  def self.parse(content)
+    model = Model.new
+    model.instance_eval do
+      props = Marshal.load(content)
+      @tokens = props[:tokens]
+      @sentences = props[:sentences]
+      @mentions = props[:mentions]
+      @keywords = props[:keywords]
+    end
+    model
+  end
+
+  def self.from_json(content, is_file)
+    model = Model.new
+    model.from_json(content, is_file)
+    model
+  end
+
+  # Create a model from JSON string
+  # @content [String/Array] Ebooks-style JSON twitter archive
+  # @return [Ebooks::Boodoo::CloudModel]
+  def from_json(content, is_file=false)
+    content = File.read(content, :encoding => 'utf-8') if is_file
+    if content.respond_to?(:upcase)
+      lines = JSON.parse(content).map do |tweet|
+        tweet['text']
+      end
+    else
+      lines = content
+    end
+    log "Reading json corpus with #{lines.size} lines"
+    consume_lines(lines)
+  end
+
+  def fetch(path=nil)
+    path ||= @path
+    if File.exist?(path)
+      log "Fetching local bot model"
+      content = File.read(@path, :encoding => 'utf-8')
+      if !content.empty?
+        log "local model fetched"
+        return content
+      end
+    end
+    log "WARNING: local bot model not found"
+    return nil
+  end
+
+  def fetch!
+    @content = fetch
+  end
+
+  def parse(content=nil)
+    props = Marshal.load(content)
+  end
+
+  def parse!(content=nil)
+    props = parse(content)
+    @tokens = props[:tokens]
+    @sentences = props[:sentences]
+    @mentions = props[:mentions]
+    @keywords = props[:keywords]
+  end
+
+  def save!
+    save(@path)
+  end
+
+  def persist(path=nil)
+    path ||= @path
+    save(path)
+  end
+
+  def persist!
+    persist
   end
 end
 
@@ -231,7 +376,7 @@ class Ebooks::Boodoo::CloudModel < Ebooks::Model
   end
 
   def initialize(username, path=nil)
-    return Ebooks::Model.new unless has_cloud?
+    return super() unless has_cloud?
     @path = path || "corpus/#{username}.model"
     if File.directory?(@path)
       @path = File.join(@path, "#{username}.model")
@@ -241,26 +386,8 @@ class Ebooks::Boodoo::CloudModel < Ebooks::Model
     @url = Cloudinary::Utils.cloudinary_url(@basename, :resource_type=>:raw)
   end
 
-  # Create a model from JSON string
-  # @content [String/Array] Ebooks-style JSON twitter archive (pre-parsed)
-  # @return [Ebooks::Boodoo::CloudModel]
-  def from_json(content, is_file=false)
-    content = File.read(content, :encoding=>'utf-8') if is_file
-    if content.respond_to?(:upcase)
-      lines = JSON.parse(content).map do |tweet|
-        tweet['text']
-      end
-    else
-      lines = content
-    end
-    log "Reading json corpus with #{lines.size} lines"
-    consume_lines(lines)
-  end
-
   def persist(public_id=nil)
     public_id ||= @basename
-    # log "Deleting old model ~~~FROM THE CLOUD~~~"
-    # Cloudinary::Api.delete_resources(@basename, :resource_type=>:raw)
     log "Uploading bot model ~~TO THE CLOUD~~"
     res = Cloudinary::Uploader.upload(@path, :resource_type=>:raw, :public_id=>public_id, :invalidate=>true)
     @url = res["url"]
@@ -270,22 +397,6 @@ class Ebooks::Boodoo::CloudModel < Ebooks::Model
 
   def persist!
     persist(@basename)
-  end
-
-  def parse(content=nil)
-    props = Marshal.load(content)
-  end
-
-  def parse!(content=nil)
-    props = parse(content)
-    @tokens = props[:tokens]
-    @sentences = props[:sentences]
-    @mentions = props[:mentions]
-    @keywords = props[:keywords]
-  end
-
-  def save!
-    save(@path)
   end
 
   def fetch(url=nil)
@@ -299,10 +410,6 @@ class Ebooks::Boodoo::CloudModel < Ebooks::Model
       log "Download complete!"
       content
     end
-  end
-
-  def fetch!
-    @content = fetch
   end
 end
 
