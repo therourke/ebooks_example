@@ -1,14 +1,11 @@
 {
   "name": "BooDooBooks",
   "description": "Turn-key _ebooks deployment using twitter_ebooks",
-  "repository": "https://github.com/BooDoo/ebooks_example/tree/deploy",
+  "repository": "https://github.com/BooDoo/ebooks_example/tree/deploy-no-card",
   "keywords": [
     "twitter",
     "bot",
     "ebooks"
-  ],
-  "addons": [
-    "papertrail:choklad"
   ],
   "env": {
     "LANG": "en_US.UTF-8",

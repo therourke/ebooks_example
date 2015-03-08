@@ -6,6 +6,13 @@ A turn-key, beginner-friendly, ready-to-deploy implementation of a traditional \
 
 Create your [Twitter app](https://apps.twitter.com) and generate access tokens with *Read, Write and Direct Messages* privileges.
 
+### Deploy using Papertrail online log addon
+#### [Valid Credit Card required, but free to use]
+
+[![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy?template=https://github.com/BooDoo/ebooks_example/tree/deploy-no-card)
+
+### Deploy with no Papertrail addon [no card required]
+
 [![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy?template=https://github.com/BooDoo/ebooks_example/tree/deploy)
 
 Put your BOT_NAME, SOURCE_USERNAME, and API secrets into Heroku Config Vars using the web dashboard.
