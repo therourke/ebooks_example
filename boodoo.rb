@@ -13,14 +13,41 @@ end
 
 module Ebooks::Boodoo
 
-  def self.age(since, now: Time.now, unit: :in_hours)
+  def self.make_Model(username: nil, path: nil, ignore_cloud: false)
+    # return CloudModel unless Cloudinary is missing or instructed not to.
+    if !ignore_cloud && has_cloud?
+      CloudModel.new(username, path)
+    else
+      Model.new
+    end
+  end
+
+  def self.make_Archive(username, path: nil, client: nil, content: nil, local: false, ignore_cloud: false)
+    # return CloudArchive unless Cloudinary is missing or instructed not to.
+    if !ignore_cloud && has_cloud?
+      CloudArchive.new(username, path: path, client: client, content: content, local: local)
+    else
+      Archive.new(username, path, client)
+    end
+  end
+
+  def age(since, now: Time.now, unit: :in_hours)
+    since |== Time.new(1986, 2, 8)
     unit = unit.to_sym
     TimeDifference.between(since, now).method(unit).call
+  end
+
+  def self.age(since, now: Time.now, unit: :in_hours)
+    age(since, now, unit)
   end
 
   # check if we're configured to use Cloudinary for cloud storage
   def has_cloud?
     (ENV['CLOUDINARY_URL'].nil? || ENV['CLOUDINARY_URL'].empty?) ? false : true
+  end
+
+  def self.has_cloud?
+    has_cloud?
   end
 
   def in_cloud?(public_id, resource_type=:raw)
@@ -140,9 +167,9 @@ module Ebooks::Boodoo
       log "Uploading JSON archive ~~TO THE CLOUD~~"
       res = Cloudinary::Uploader.upload(new_path, :resource_type=>:raw, :public_id=>public_id, :invalidate=>true)
       log "Upload complete"
-      res["url"]
+      {url: res["url"], lines: JSON.generate(lines)}
     else
-      JSON.generate(lines)
+      {url: nil, lines: JSON.generate(lines)}
     end
   end
 end
@@ -204,12 +231,8 @@ class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
     end
   end
 
-  def initialize(username, path=nil, client=nil, options={})
-    # Just bail on everything if we aren't using Cloudinary
-    return super(username, path, client) unless has_cloud?
+  def initialize(username, path: nil, client: nil, content: nil, local: false)
     # Otherwise duplicate a lot of super(), but also use ~~THE CLOUD~~
-    local = options.delete(:local) || false
-    content = options.delete(:content)
     @username = username
     @path = path || "corpus/#{username}.json"
     if File.directory?(@path)
@@ -242,8 +265,13 @@ class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
     log "Uploading JSON archive ~~TO THE CLOUD~~"
     res = Cloudinary::Uploader.upload(@path, :resource_type=>:raw, :public_id=>public_id, :invalidate=>true)
     @url = res["url"]
+    @persisted = Time.now
     log "Upload complete!"
     res
+  end
+
+  def since_persisted
+    Boodoo.age(@persisted, Time.now)
   end
 
   # Unused method?
@@ -261,15 +289,21 @@ class Ebooks::Boodoo::CloudArchive < Ebooks::Archive
     content = Cloudinary::Downloader.download(url, :resource_type=>:raw)
     if content.empty?
       log "WARNING: JSON archive not found ~~~IN THE CLOUD~~~"
+      @fetched = nil
       nil
     else
       log "Download complete!"
+      @fetched = Time.now
       content
     end
   end
 
   def fetch!
     @content = fetch
+  end
+
+  def since_fetched
+    Boodoo.age(@fetched, Time.now)
   end
 end
 
@@ -287,7 +321,7 @@ class Ebooks::Model
     model
   end
 
-  def self.from_json(content, is_file)
+  def self.from_json(content, is_path: nil)
     model = Model.new
     model.from_json(content, is_file)
     model
@@ -295,9 +329,9 @@ class Ebooks::Model
 
   # Create a model from JSON string
   # @content [String/Array] Ebooks-style JSON twitter archive
-  # @return [Ebooks::Boodoo::CloudModel]
-  def from_json(content, is_file=false)
-    content = File.read(content, :encoding => 'utf-8') if is_file
+  # @return [Ebooks::Model]
+  def from_json(content, is_path: false)
+    content = File.read(content, :encoding => 'utf-8') if is_path
     if content.respond_to?(:upcase)
       lines = JSON.parse(content).map do |tweet|
         tweet['text']
@@ -375,8 +409,7 @@ class Ebooks::Boodoo::CloudModel < Ebooks::Model
     model
   end
 
-  def initialize(username, path=nil)
-    return super() unless has_cloud?
+  def initialize(username, path: nil)
     @path = path || "corpus/#{username}.model"
     if File.directory?(@path)
       @path = File.join(@path, "#{username}.model")
