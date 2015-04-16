@@ -73,7 +73,7 @@ class BoodooBot
       log "This can run!"
       if initial_corpus_file.blank? || in_cloud?(File.basename(@archive_path))
         log "Skipping initial corpus consumption"
-        @archive = Boodoo.make_Archive(original, archive_path, twitter)
+        @archive = Boodoo.make_Archive(original, path: archive_path, client: twitter)
         @model = Boodoo.make_Model(username: original, path: model_path).from_json(archive_path, is_path: true)
       else
         log "Consuming initial corpus..."
