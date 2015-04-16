@@ -77,7 +77,7 @@ class BoodooBot
         @model = Boodoo.make_Model(username: original, path: model_path).from_json(archive_path, is_path: true)
       else
         log "Consuming initial corpus..."
-        archive_json = jsonify(initial_corpus_file, from_cloud: has_cloud?, new_name: original, to_cloud: false)
+        archive_json = jsonify(initial_corpus_file, from_cloud: has_cloud?, new_name: original, to_cloud: true)
         @archive = Boodoo.make_Archive(original, path: archive_path, client: twitter, local: true, content: archive_json.lines)
         @model = Boodoo.make_Model(username: original, path: model_path).from_json(archive_json, is_path: false)
       end
