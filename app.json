@@ -29,7 +29,7 @@
     "INITIAL_CORPUS_FILE": {
       "required": false,
       "value": "tweets.csv"
-    }
+    },
     "CLOUDINARY_URL": {
       "required": false,
       "value": ""
