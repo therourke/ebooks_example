@@ -32,7 +32,7 @@ module Ebooks::Boodoo
   end
 
   def age(since, now: Time.now, unit: :in_hours)
-    since |== Time.new(1986, 2, 8)
+    since ||= Time.new(1986, 2, 8)
     unit = unit.to_sym
     TimeDifference.between(since, now).method(unit).call
   end
