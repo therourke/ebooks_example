@@ -16,7 +16,7 @@ module Ebooks::Boodoo
   def self.make_Model(username: nil, path: nil, ignore_cloud: false)
     # return CloudModel unless Cloudinary is missing or instructed not to.
     if !ignore_cloud && has_cloud?
-      CloudModel.new(username, path)
+      CloudModel.new(username, path: path)
     else
       Model.new
     end
