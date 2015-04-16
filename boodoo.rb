@@ -46,9 +46,9 @@ module Ebooks::Boodoo
     (ENV['CLOUDINARY_URL'].nil? || ENV['CLOUDINARY_URL'].empty?) ? false : true
   end
 
-  def self.has_cloud?
-    has_cloud?
-  end
+  # def self.has_cloud?
+  #   has_cloud?
+  # end
 
   def in_cloud?(public_id, resource_type=:raw)
     return false if !has_cloud?
