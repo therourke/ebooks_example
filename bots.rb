@@ -101,12 +101,6 @@ class BoodooBot
     scheduler.interval @update_follows_interval do
       follow_parity
     end
-
-    scheduler.interval @refresh_model_interval do
-      log "Refreshing archive/model..."
-      get_archive!
-      make_model!
-    end
   end
 
   def on_message(dm)
